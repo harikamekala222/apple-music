@@ -7,7 +7,7 @@ pipeline {
 
         PROJECT_DIR = "/opt/apple-music"
 
-        EC2_PUBLIC_IP = "13.206.80.243"
+        EC2_PUBLIC_IP = "65.2.127.100"
 
         POSTGRES_USER = "musicuser"
 
