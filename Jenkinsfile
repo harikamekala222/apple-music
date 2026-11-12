@@ -1,4 +1,3 @@
-
 pipeline {
 
     agent any
@@ -22,9 +21,12 @@ pipeline {
 
     stages {
 
+        // =========================================
+        // STAGE 1: CHECKOUT
+        // =========================================
+
         stage('Checkout') {
             steps {
-
                 echo "======================================"
                 echo "CHECKOUT SOURCE CODE"
                 echo "======================================"
@@ -33,6 +35,9 @@ pipeline {
             }
         }
 
+        // =========================================
+        // STAGE 2: COPY PROJECT
+        // =========================================
 
         stage('Copy Project') {
             steps {
@@ -44,13 +49,20 @@ pipeline {
                 sh '''
                     mkdir -p ${PROJECT_DIR}
 
-                    cp -r ${WORKSPACE}/. ${PROJECT_DIR}/
+                    rsync -av \
+                        --exclude='.git/' \
+                        --exclude='.env' \
+                        ${WORKSPACE}/ \
+                        ${PROJECT_DIR}/
 
                     echo "Project copied successfully"
                 '''
             }
         }
 
+        // =========================================
+        // STAGE 3: CREATE ENVIRONMENT FILE
+        // =========================================
 
         stage('Create Environment File') {
             steps {
@@ -62,12 +74,14 @@ pipeline {
                 sh '''
                     cd ${PROJECT_DIR}
 
+                    umask 077
+
                     cat > .env <<EOF
 POSTGRES_USER=${POSTGRES_USER}
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 POSTGRES_DB=${DB_NAME}
 
-DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${DB_NAME}
+DATABASE_URL=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${DB_NAME}
 
 R2_ENDPOINT=
 R2_ACCESS_KEY=
@@ -82,6 +96,9 @@ EOF
             }
         }
 
+        // =========================================
+        // STAGE 4: VALIDATE DOCKER COMPOSE
+        // =========================================
 
         stage('Validate Docker Compose') {
             steps {
@@ -100,6 +117,9 @@ EOF
             }
         }
 
+        // =========================================
+        // STAGE 5: BUILD DOCKER IMAGES
+        // =========================================
 
         stage('Build Docker Images') {
             steps {
@@ -118,6 +138,9 @@ EOF
             }
         }
 
+        // =========================================
+        // STAGE 6: DEPLOY APPLICATION
+        // =========================================
 
         stage('Deploy Application') {
             steps {
@@ -136,6 +159,9 @@ EOF
             }
         }
 
+        // =========================================
+        // STAGE 7: CHECK CONTAINERS
+        // =========================================
 
         stage('Check Containers') {
             steps {
@@ -157,6 +183,9 @@ EOF
             }
         }
 
+        // =========================================
+        // STAGE 8: BACKEND HEALTH CHECK
+        // =========================================
 
         stage('Backend Health Check') {
             steps {
@@ -180,6 +209,9 @@ EOF
             }
         }
 
+        // =========================================
+        // STAGE 9: FRONTEND HEALTH CHECK
+        // =========================================
 
         stage('Frontend Health Check') {
             steps {
@@ -203,6 +235,9 @@ EOF
             }
         }
 
+        // =========================================
+        // STAGE 10: DEPLOYMENT INFORMATION
+        // =========================================
 
         stage('Deployment Information') {
             steps {
@@ -239,6 +274,9 @@ EOF
         }
     }
 
+    // =========================================
+    // POST BUILD ACTIONS
+    // =========================================
 
     post {
 
@@ -254,46 +292,3 @@ http://${EC2_PUBLIC_IP}
 
 Backend Health:
 http://${EC2_PUBLIC_IP}/api/health
-
-Swagger:
-http://${EC2_PUBLIC_IP}/api/docs
-
-Albums:
-http://${EC2_PUBLIC_IP}/api/albums
-
-========================================
-"""
-        }
-
-
-        failure {
-
-            echo """
-========================================
-       APPLE MUSIC DEPLOYMENT FAILED
-========================================
-
-Run these commands on EC2:
-
-cd ${PROJECT_DIR}
-
-docker compose ps
-
-docker compose logs --tail=100
-
-docker logs apple-music-db
-
-docker logs apple-music-backend
-
-docker logs apple-music-frontend
-
-========================================
-"""
-        }
-
-        always {
-
-            echo "Apple Music Jenkins pipeline execution completed."
-        }
-    }
-}
